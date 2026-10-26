@@ -1,0 +1,11 @@
+# .gitignore for RCB Auction Predictor 2027
+node_modules/
+dist/
+data/
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+Thumbs.db
+players.csv
