@@ -7,7 +7,7 @@ import {
   AdminStats 
 } from '../types';
 
-const DIRECT_BACKEND = 'http://127.0.0.1:3001/api';
+const BASE_URL = '/api';
 
 // Cache the working base URL once verified so all subsequent requests are instant (<10ms)
 let cachedBaseUrl: string | null = null;
@@ -34,85 +34,24 @@ async function fetchWithValidation<T>(url: string, options: RequestInit = {}): P
   return data as T;
 }
 
-/**
- * Ultra-fast API requester:
- * - Automatically races direct backend (http://127.0.0.1:3001/api) and relative proxy (/api).
- * - Enforces a strict 3.5s maximum timeout so verification never hangs.
- * - Caches winning URL for sub-50ms subsequent calls.
- */
 async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${BASE_URL}${cleanEndpoint}`;
 
-  if (cachedBaseUrl) {
-    try {
-      const abortCtrl = new AbortController();
-      const timeoutId = setTimeout(() => abortCtrl.abort(), 3500);
-      const res = await fetchWithValidation<T>(`${cachedBaseUrl}${cleanEndpoint}`, {
-        ...options,
-        signal: abortCtrl.signal,
-      });
-      clearTimeout(timeoutId);
-      return res;
-    } catch (err: any) {
-      if (err.message && !err.message.includes('fetch') && !err.message.includes('aborted') && !err.message.includes('connection error')) {
-        throw err;
-      }
-      cachedBaseUrl = null;
-    }
-  }
-
-  // True parallel race with strict 3.5s limit
   const abortCtrl = new AbortController();
+  const timeoutId = setTimeout(() => abortCtrl.abort(), 10000);
 
-  return new Promise<T>((resolve, reject) => {
-    let settled = false;
-    let failedCount = 0;
-    let lastError: any = null;
-
-    const timeoutId = setTimeout(() => {
-      if (!settled) {
-        settled = true;
-        abortCtrl.abort();
-        reject(new Error('Verification timed out after 3 seconds. Please ensure the backend server is running.'));
-      }
-    }, 3500);
-
-    const tryReq = async (url: string, isDirect: boolean) => {
-      try {
-        const data = await fetchWithValidation<T>(url, { ...options, signal: abortCtrl.signal });
-        if (!settled) {
-          settled = true;
-          clearTimeout(timeoutId);
-          cachedBaseUrl = isDirect ? DIRECT_BACKEND : '/api';
-          resolve(data);
-        }
-      } catch (err: any) {
-        lastError = err;
-        failedCount++;
-
-        // If it's a direct API validation failure (like existing number), reject immediately
-        if (err.message && !err.message.includes('fetch') && !err.message.includes('aborted') && !err.message.includes('connection error')) {
-          if (!settled) {
-            settled = true;
-            clearTimeout(timeoutId);
-            reject(err);
-            return;
-          }
-        }
-
-        // If both failed, reject
-        if (failedCount >= 2 && !settled) {
-          settled = true;
-          clearTimeout(timeoutId);
-          reject(lastError || new Error('Verification timed out after 3 seconds. Please ensure the backend server is running.'));
-        }
-      }
-    };
-
-    // Launch both immediately in parallel
-    tryReq(`${DIRECT_BACKEND}${cleanEndpoint}`, true);
-    tryReq(`/api${cleanEndpoint}`, false);
-  });
+  try {
+    const result = await fetchWithValidation<T>(url, { ...options, signal: abortCtrl.signal });
+    clearTimeout(timeoutId);
+    return result;
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      throw new Error('Request timed out. Please check your connection and try again.');
+    }
+    throw err;
+  }
 }
 
 export const api = {
