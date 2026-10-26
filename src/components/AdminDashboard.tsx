@@ -239,7 +239,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   // ─── Auth Gate ─────────────────────────────────────────────────────────────
   if (!isAuthenticated) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center px-4">
+      <div className="min-h-[60vh] flex items-start justify-center px-4 py-10 overflow-y-auto">
         <div className="w-full max-w-sm bg-rcb-card border border-rcb-border rounded-2xl p-7">
           <div className="flex items-center gap-2 mb-5">
             <div className="w-9 h-9 rounded-lg bg-rcb-gold/20 border border-rcb-gold/40 flex items-center justify-center">
@@ -258,26 +258,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
             </div>
           )}
 
-          <div className="mb-4">
-            <label className="text-xs font-bold text-white uppercase mb-1.5 block">Admin Secret</label>
-            <input
-              type="password"
-              value={adminSecret}
-              onChange={(e) => setAdminSecret(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
-              placeholder="Enter admin secret..."
-              className="w-full px-3 py-2.5 rounded-xl bg-rcb-charcoal border border-rcb-border text-white text-sm outline-none focus:border-rcb-gold transition-colors"
-            />
-          </div>
+          <form onSubmit={(e) => { e.preventDefault(); handleVerify(); }}>
+            <div className="mb-4">
+              <label className="text-xs font-bold text-white uppercase mb-1.5 block">Admin Secret</label>
+              <input
+                type="password"
+                value={adminSecret}
+                onChange={(e) => setAdminSecret(e.target.value)}
+                placeholder="Enter admin secret..."
+                autoComplete="current-password"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                className="w-full px-3 py-3 rounded-xl bg-rcb-charcoal border border-rcb-border text-white text-sm outline-none focus:border-rcb-gold transition-colors"
+              />
+            </div>
 
-          <button
-            onClick={handleVerify}
-            disabled={verifying || !adminSecret}
-            className="w-full py-3 rounded-xl bg-rcb-gold hover:bg-rcb-goldLight text-rcb-dark font-heading font-black text-sm uppercase tracking-wider transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {verifying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
-            Verify & Enter Dashboard
-          </button>
+            <button
+              type="submit"
+              disabled={verifying || !adminSecret}
+              className="w-full py-3.5 rounded-xl bg-rcb-gold hover:bg-rcb-goldLight text-rcb-dark font-heading font-black text-sm uppercase tracking-wider transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {verifying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
+              Verify &amp; Enter Dashboard
+            </button>
+          </form>
 
           <p className="text-[10px] text-rcb-muted text-center mt-3">
             ⚠️ Admin secret must be set via ADMIN_SECRET environment variable. Never hardcode secrets.

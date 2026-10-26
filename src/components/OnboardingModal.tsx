@@ -51,7 +51,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-8 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
       <div 
         className="w-full max-w-md bg-rcb-card border border-rcb-border rounded-2xl shadow-2xl overflow-hidden relative"
         onClick={(e) => e.stopPropagation()}
@@ -100,6 +100,10 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 placeholder="e.g. ViratFan18 or Ananya"
                 maxLength={40}
                 required
+                autoComplete="name"
+                autoCorrect="off"
+                autoCapitalize="words"
+                spellCheck={false}
                 className="w-full pl-10 pr-4 py-3 rounded-xl bg-rcb-charcoal border border-rcb-border focus:border-rcb-red focus:ring-1 focus:ring-rcb-red text-white text-sm outline-none transition-all placeholder:text-rcb-muted/60"
               />
             </div>
@@ -120,11 +124,16 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               </div>
               <input
                 type="tel"
+                inputMode="numeric"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="9876543210"
                 maxLength={14}
                 required
+                autoComplete="tel"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 className="w-full pl-20 pr-4 py-3 rounded-xl bg-rcb-charcoal border border-rcb-border focus:border-rcb-red focus:ring-1 focus:ring-rcb-red text-white text-sm outline-none transition-all placeholder:text-rcb-muted/60 font-mono"
               />
             </div>
