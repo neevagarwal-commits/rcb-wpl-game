@@ -210,4 +210,29 @@ export const api = {
       headers: { 'x-admin-secret': secret },
     });
   },
+
+  async adminDeleteEntry(secret: string, participantId: string): Promise<any> {
+    return apiRequest<any>(`/admin/entries/${participantId}`, {
+      method: 'DELETE',
+      headers: { 'x-admin-secret': secret },
+    });
+  },
+
+  async adminDeleteParticipant(secret: string, participantId: string): Promise<any> {
+    return apiRequest<any>(`/admin/participants/${participantId}`, {
+      method: 'DELETE',
+      headers: { 'x-admin-secret': secret },
+    });
+  },
+
+  async adminClearAllEntries(secret: string, includeParticipants = false): Promise<any> {
+    return apiRequest<any>('/admin/clear-all-entries', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-admin-secret': secret,
+      },
+      body: JSON.stringify({ includeParticipants }),
+    });
+  },
 };

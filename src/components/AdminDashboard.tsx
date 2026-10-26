@@ -3,7 +3,7 @@ import {
   Shield, AlertCircle, Loader2, Users, BarChart3,
   Settings, Download, Lock, Unlock, Eye, CheckCircle,
   Search, Edit2, Save, X, Globe, ChevronDown, RefreshCw,
-  AlertTriangle, ClipboardList, FileText
+  AlertTriangle, ClipboardList, FileText, Trash2, UserX
 } from 'lucide-react';
 import { api } from '../services/api';
 import { AdminStats, ContestSettings } from '../types';
@@ -33,6 +33,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const [pendingResults, setPendingResults] = useState<Record<number, { purchasedByRcb: boolean; actualPriceLakh: string; notes: string }>>({});
   const [publishConfirm, setPublishConfirm] = useState(false);
   const [unpublishConfirm, setUnpublishConfirm] = useState(false);
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deleteMode, setDeleteMode] = useState<'entry' | 'participant'>('entry');
 
   const handleVerify = async () => {
     setVerifying(true);
@@ -178,6 +181,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       setPreviewScores(scores);
     } catch (err: any) {
       setError(err.message);
+    }
+  };
+
+  const handleDeleteEntry = async (participantId: string) => {
+    try {
+      setLoading(true);
+      await api.adminDeleteEntry(adminSecret, participantId);
+      showSuccess('Prediction entry removed successfully.');
+      setConfirmDeleteId(null);
+      loadAllData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete entry');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteParticipant = async (participantId: string) => {
+    try {
+      setLoading(true);
+      await api.adminDeleteParticipant(adminSecret, participantId);
+      showSuccess('Participant and all their records deleted successfully.');
+      setConfirmDeleteId(null);
+      loadAllData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete participant');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClearAll = async (includeParticipants = false) => {
+    try {
+      setLoading(true);
+      const res = await api.adminClearAllEntries(adminSecret, includeParticipants);
+      showSuccess(res.message || 'All entries cleared successfully.');
+      setConfirmClearAll(false);
+      loadAllData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to clear entries');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -573,15 +618,55 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       {activeSection === 'participants' && (
         <div className="space-y-4">
           <div className="bg-rcb-card border border-rcb-border rounded-2xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-rcb-border bg-rcb-charcoal/40">
-              <h3 className="text-xs font-bold text-white uppercase">Participants ({participants.length})</h3>
-              <p className="text-[11px] text-rcb-muted mt-0.5">Phone numbers shown as masked by default for privacy.</p>
+            <div className="px-4 py-3.5 border-b border-rcb-border bg-rcb-charcoal/40 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                  Participants ({participants.length})
+                </h3>
+                <p className="text-[11px] text-rcb-muted mt-0.5">
+                  Manage fan registrations and prediction squads.
+                </p>
+              </div>
+
+              {/* Clear All Controls */}
+              {participants.length > 0 && (
+                <div>
+                  {!confirmClearAll ? (
+                    <button
+                      onClick={() => setConfirmClearAll(true)}
+                      className="px-3 py-1.5 rounded-lg bg-rcb-red/15 hover:bg-rcb-red/25 border border-rcb-red/40 text-rcb-redBright text-xs font-bold transition-colors flex items-center gap-1.5"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete All Test Entries</span>
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2 p-2 rounded-xl bg-rcb-red/20 border border-rcb-red/50">
+                      <span className="text-[11px] text-red-200 font-bold">Wipe all entries?</span>
+                      <button
+                        onClick={() => handleClearAll(true)}
+                        className="px-2.5 py-1 rounded bg-rcb-red text-white text-[11px] font-black hover:bg-rcb-redBright"
+                      >
+                        Yes, Delete All
+                      </button>
+                      <button
+                        onClick={() => setConfirmClearAll(false)}
+                        className="px-2 py-1 rounded bg-rcb-card border border-rcb-border text-rcb-muted text-[11px] font-bold hover:text-white"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+
             <div className="max-h-[500px] overflow-y-auto">
               {participants.map((p: any) => (
                 <div key={p.id} className="grid grid-cols-12 items-center gap-2 px-4 py-3 border-b border-rcb-border/40 last:border-0 text-xs">
-                  <div className="col-span-3 font-bold text-white truncate">{p.displayName}</div>
-                  <div className="col-span-3 font-mono text-rcb-muted">{p.phone}</div>
+                  <div className="col-span-3 font-bold text-white truncate" title={p.displayName}>
+                    {p.displayName}
+                  </div>
+                  <div className="col-span-2 font-mono text-rcb-muted truncate">{p.phone}</div>
                   <div className="col-span-2 text-rcb-muted">{new Date(p.registeredAt).toLocaleDateString('en-IN')}</div>
                   <div className="col-span-2 text-center">
                     {p.hasEntry ? (
@@ -590,13 +675,55 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                       <span className="text-rcb-muted/60">No Entry</span>
                     )}
                   </div>
-                  <div className="col-span-2 text-right font-mono font-black text-rcb-gold">
+                  <div className="col-span-1 text-right font-mono font-black text-rcb-gold">
                     {p.score ? `${p.score.totalPoints} pts` : '—'}
+                  </div>
+
+                  {/* Action Column */}
+                  <div className="col-span-2 flex items-center justify-end gap-1.5">
+                    {confirmDeleteId === p.id ? (
+                      <div className="flex items-center gap-1 bg-rcb-dark border border-rcb-red/60 rounded-lg p-1">
+                        <button
+                          onClick={() => deleteMode === 'entry' ? handleDeleteEntry(p.id) : handleDeleteParticipant(p.id)}
+                          className="px-1.5 py-0.5 rounded bg-rcb-red text-white text-[10px] font-bold"
+                          title="Confirm Delete"
+                        >
+                          Confirm
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteId(null)}
+                          className="px-1 py-0.5 rounded text-rcb-muted hover:text-white text-[10px]"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        {p.hasEntry && (
+                          <button
+                            onClick={() => { setConfirmDeleteId(p.id); setDeleteMode('entry'); }}
+                            className="p-1.5 rounded-lg bg-rcb-charcoal hover:bg-rcb-red/20 text-rcb-muted hover:text-rcb-redBright border border-rcb-border transition-colors"
+                            title="Delete Squad Entry only"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => { setConfirmDeleteId(p.id); setDeleteMode('participant'); }}
+                          className="p-1.5 rounded-lg bg-rcb-charcoal hover:bg-rcb-red/20 text-rcb-muted hover:text-rcb-redBright border border-rcb-border transition-colors"
+                          title="Delete Participant and All Records"
+                        >
+                          <UserX className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
               {participants.length === 0 && (
-                <div className="py-12 text-center text-rcb-muted text-sm">No participants yet.</div>
+                <div className="py-14 text-center text-rcb-muted text-sm">
+                  No participants or entries yet. Clean slate!
+                </div>
               )}
             </div>
           </div>

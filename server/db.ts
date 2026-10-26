@@ -310,6 +310,66 @@ class DatabaseService {
     return this.getEntryByParticipantId(participantId)!;
   }
 
+  public deleteEntry(participantId: string): boolean {
+    const initialCount = this.data.entries.length;
+    this.data.entries = this.data.entries.filter(e => e.participantId !== participantId);
+    
+    // Also remove from publishedScores if published
+    if (this.data.publishedScores) {
+      this.data.publishedScores = this.data.publishedScores.filter(s => s.participantId !== participantId);
+      this.data.publishedScores.forEach((s, idx) => {
+        s.rank = idx + 1;
+      });
+    }
+
+    if (this.data.entries.length !== initialCount) {
+      this.addAuditLog('ENTRY_DELETED', `Admin deleted prediction entry for participant ${participantId}.`);
+      this.persist();
+      return true;
+    }
+    return false;
+  }
+
+  public deleteParticipant(participantId: string): boolean {
+    const participant = this.getParticipantById(participantId);
+    if (!participant) return false;
+
+    // Delete associated entry
+    this.data.entries = this.data.entries.filter(e => e.participantId !== participantId);
+
+    // Delete participant
+    this.data.participants = this.data.participants.filter(p => p.id !== participantId);
+
+    // Remove from publishedScores
+    if (this.data.publishedScores) {
+      this.data.publishedScores = this.data.publishedScores.filter(s => s.participantId !== participantId);
+      this.data.publishedScores.forEach((s, idx) => {
+        s.rank = idx + 1;
+      });
+    }
+
+    this.addAuditLog('PARTICIPANT_DELETED', `Admin deleted participant ${participant.displayName} (${participantId}) and associated entry.`);
+    this.persist();
+    return true;
+  }
+
+  public clearAllEntries(includeParticipants = false): { deletedEntries: number; deletedParticipants: number } {
+    const deletedEntries = this.data.entries.length;
+    const deletedParticipants = includeParticipants ? this.data.participants.length : 0;
+
+    this.data.entries = [];
+    this.data.publishedScores = null;
+
+    if (includeParticipants) {
+      this.data.participants = [];
+    }
+
+    this.addAuditLog('ENTRIES_CLEARED', `Admin cleared all fan entries (${deletedEntries} entries, ${deletedParticipants} participants removed).`);
+    this.persist();
+
+    return { deletedEntries, deletedParticipants };
+  }
+
   // --- Contest Settings ---
   public getContestSettings(): ContestSettings {
     return this.data.contestSettings;

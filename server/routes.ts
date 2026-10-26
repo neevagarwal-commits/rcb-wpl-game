@@ -272,6 +272,51 @@ router.get('/admin/participants', requireAdmin, (req: Request, res: Response) =>
   }
 });
 
+// Admin: Delete a single participant's squad prediction entry
+router.delete('/admin/entries/:participantId', requireAdmin, (req: Request, res: Response) => {
+  try {
+    const participantId = req.params.participantId as string;
+    const deleted = db.deleteEntry(participantId);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Entry not found' });
+    }
+    res.json({ success: true, message: 'Prediction entry deleted successfully' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin: Delete a participant completely (and their entry)
+router.delete('/admin/participants/:participantId', requireAdmin, (req: Request, res: Response) => {
+  try {
+    const participantId = req.params.participantId as string;
+    const deleted = db.deleteParticipant(participantId);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Participant not found' });
+    }
+    res.json({ success: true, message: 'Participant and all associated records deleted successfully' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin: Clear all entries / reset all fan entries
+router.post('/admin/clear-all-entries', requireAdmin, (req: Request, res: Response) => {
+  try {
+    const { includeParticipants } = req.body;
+    const stats = db.clearAllEntries(Boolean(includeParticipants));
+    res.json({
+      success: true,
+      message: includeParticipants 
+        ? `Cleared ${stats.deletedEntries} entries and ${stats.deletedParticipants} participants.`
+        : `Cleared ${stats.deletedEntries} entries. Participants roster retained.`,
+      stats,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Export CSV of Participants, Predictions and Scores
 router.get('/admin/export-csv', requireAdmin, (req: Request, res: Response) => {
   try {
