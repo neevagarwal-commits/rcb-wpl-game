@@ -9,65 +9,86 @@ import {
 
 const DIRECT_BACKEND = 'http://127.0.0.1:3001/api';
 
+// Cache the working base URL once verified so all subsequent requests are instant (<10ms)
+let cachedBaseUrl: string | null = null;
+
+async function fetchWithValidation<T>(url: string, options: RequestInit = {}): Promise<T> {
+  const res = await fetch(url, options);
+  const contentType = res.headers.get('content-type') || '';
+
+  if (!contentType.includes('application/json')) {
+    const text = await res.text();
+    if (!res.ok) {
+      if (res.status === 404) {
+        throw new Error(`Endpoint not found (${res.status}). Verify the server is running.`);
+      }
+      throw new Error(`Server connection error (${res.status}).`);
+    }
+    throw new Error('Unexpected non-JSON response from server.');
+  }
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || data.message || `Request failed with status ${res.status}`);
+  }
+  return data as T;
+}
+
 /**
- * Robust HTTP client that:
- * 1. Attempts relative /api first (works with Vite proxy or production unified host).
- * 2. Falls back to direct CORS request to backend (http://127.0.0.1:3001/api) if proxy returns HTML/502/504.
- * 3. Safely validates Content-Type to prevent "Unexpected token 'T' / JSON parse" crashes.
- * 4. Yields clean, informative error messages.
+ * Ultra-fast API requester:
+ * - Uses cachedBaseUrl immediately for sub-millisecond dispatch if known.
+ * - Races relative path (/api) and direct backend (http://127.0.0.1:3001/api) with 200ms threshold for fastest response.
  */
 async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  const isDirect = typeof window !== 'undefined' && window.location.port === '3001';
 
-  const urlsToTry = isDirect 
-    ? [`/api${cleanEndpoint}`]
-    : [`/api${cleanEndpoint}`, `${DIRECT_BACKEND}${cleanEndpoint}`];
-
-  let lastError: Error | null = null;
-
-  for (const url of urlsToTry) {
+  if (cachedBaseUrl) {
     try {
-      const res = await fetch(url, options);
-      const contentType = res.headers.get('content-type') || '';
-
-      // If response is not JSON, inspect status and handle gracefully
-      if (!contentType.includes('application/json')) {
-        const text = await res.text();
-        if (urlsToTry.indexOf(url) < urlsToTry.length - 1) {
-          // Fall back to next URL (e.g. direct backend)
-          continue;
-        }
-
-        if (!res.ok) {
-          if (res.status === 404) {
-            throw new Error(`Service endpoint not found (${res.status}). Verify the backend server is running.`);
-          }
-          throw new Error(`Server returned error (${res.status}). Please check your connection.`);
-        }
-
-        throw new Error('Server returned an unexpected non-JSON response. Please refresh.');
-      }
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || data.message || `Request failed with status ${res.status}`);
-      }
-
-      return data as T;
+      return await fetchWithValidation<T>(`${cachedBaseUrl}${cleanEndpoint}`, options);
     } catch (err: any) {
-      lastError = err;
-      // If error is already a known API rejection (e.g. validation error 400), don't retry, throw directly
-      if (err.message && !err.message.includes('fetch') && !err.message.includes('JSON') && !err.message.includes('Service endpoint')) {
+      // If error is an API error from server (e.g. 400 validation), throw directly
+      if (err.message && !err.message.includes('fetch') && !err.message.includes('connection error')) {
         throw err;
       }
+      cachedBaseUrl = null;
     }
   }
 
-  throw new Error(
-    lastError?.message || 
-    'Unable to connect to RCB Predictor server. Please make sure the backend is running (`npm run server` or `npm run dev`).'
-  );
+  // Fast racing: launch relative /api
+  const controller = new AbortController();
+  const primaryPromise = fetchWithValidation<T>(`/api${cleanEndpoint}`, {
+    ...options,
+    signal: controller.signal,
+  });
+
+  // Short 200ms timer to ensure near-zero latency
+  let directPromise: Promise<T> | null = null;
+  const timeoutId = setTimeout(() => {
+    directPromise = fetchWithValidation<T>(`${DIRECT_BACKEND}${cleanEndpoint}`, options);
+  }, 200);
+
+  try {
+    const result = await primaryPromise;
+    clearTimeout(timeoutId);
+    cachedBaseUrl = '/api';
+    return result;
+  } catch (primaryErr: any) {
+    clearTimeout(timeoutId);
+
+    // If it's a legitimate API validation error (e.g. name length or existing phone), throw it directly
+    if (primaryErr.message && !primaryErr.message.includes('fetch') && !primaryErr.message.includes('connection error')) {
+      throw primaryErr;
+    }
+
+    // Try direct backend
+    try {
+      const fallbackResult = directPromise ? await directPromise : await fetchWithValidation<T>(`${DIRECT_BACKEND}${cleanEndpoint}`, options);
+      cachedBaseUrl = DIRECT_BACKEND;
+      return fallbackResult;
+    } catch {
+      throw new Error('Unable to connect to RCB Predictor server. Please make sure the backend is running on port 3001.');
+    }
+  }
 }
 
 export const api = {

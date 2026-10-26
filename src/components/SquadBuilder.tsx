@@ -102,7 +102,6 @@ export const SquadBuilder: React.FC<SquadBuilderProps> = ({
   const totalSpend = useMemo(() => picks.reduce((s, p) => s + p.predictedPriceLakh, 0), [picks]);
 
   const handleSelectPlayer = (player: Player) => {
-    if (!participantId) { onOpenAuth(); return; }
     if (selectedIds.has(player.id)) return;
     if (picks.length >= contestSettings.maxPicks) return;
     if (player.isOverseas && overseasSelected >= contestSettings.maxOverseas) return;
@@ -120,6 +119,7 @@ export const SquadBuilder: React.FC<SquadBuilderProps> = ({
   };
 
   const getDisabledReason = (player: Player): string | undefined => {
+    if (isLocked) return `Contest is ${contestSettings.status === 'RESULTS_LIVE' ? 'Results Live' : 'Locked'}`;
     if (picks.length >= contestSettings.maxPicks) return `Max ${contestSettings.maxPicks} picks reached`;
     if (player.isOverseas && overseasSelected >= contestSettings.maxOverseas) return `Max ${contestSettings.maxOverseas} overseas players reached`;
     if (totalSpend + player.basePriceLakh > contestSettings.maxPurseLakh) return `Would exceed ₹${contestSettings.maxPurseLakh}L purse`;
