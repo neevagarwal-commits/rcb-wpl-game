@@ -5,7 +5,7 @@ import { ContestStatus } from '../src/types';
 export const router = Router();
 
 // Middleware: Admin Protection
-const ADMIN_SECRET = process.env.ADMIN_SECRET || 'rcb_admin_secret_2027';
+const ADMIN_SECRET = process.env.ADMIN_SECRET || 'rcbgn2027';
 
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const secret = req.headers['x-admin-secret'] || req.headers['authorization']?.replace(/^Bearer\s+/i, '');
